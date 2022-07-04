@@ -19,7 +19,7 @@ namespace CpuUsage_System
             {
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine($"{DateTime.Now} :: Start calculating CPU Usage...");
-                _perfCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                _perfCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total", true);
                 _timer = new Timer();
                 _timer.Interval = TimeSpan.FromSeconds(1).TotalMilliseconds;
                 _timer.Elapsed += CpuNextValue_Timer;
