@@ -1,68 +1,71 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Timers;
+using System.Windows.Forms;
 
 namespace CpuUsage_System
 {
     class Program
     {
-        private static PerformanceCounter _perfCounter = null;
-        private static Timer _timer = null;
+        private static bool _displayHeader = true;
+        private static PerformanceCounter _pCounter = null;
+        private static readonly object _opsMutex = new object();
+        private static readonly ConcurrentBag<double> _cpuValBag = new ConcurrentBag<double>();
 
         static void Main(string[] args)
         {
-            try
-            {
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine($"{DateTime.Now} :: Start calculating CPU Usage...");
-                _perfCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total", true);
-                _timer = new Timer();
-                _timer.Interval = TimeSpan.FromSeconds(1).TotalMilliseconds;
-                _timer.Elapsed += CpuNextValue_Timer;
-                _timer.Enabled = true;
-                System.Windows.Forms.Application.Run();
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Error :: {ex}");
-            }
-            finally
-            {
-                Console.ForegroundColor = ConsoleColor.White;
-            }
+            Console.WriteLine("Press Enter to start");
+            Console.WriteLine(string.Format("{0} PerformanceCounter instance creation starts....!!", DateTime.Now));
+            _pCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total", true);
+            Console.WriteLine(string.Format("{0} PerformanceCounter instance creation end....!!", DateTime.Now));
+            Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+            _pCounter.BeginInit();
+            Console.WriteLine(string.Format("{0} PerformanceCounter.BeginInit end....!!", DateTime.Now));
+            Task.Delay(TimeSpan.FromSeconds(1)).Wait();
+            TimeSpan timeSpan = TimeSpan.FromSeconds(5);
+            Console.WriteLine(string.Format(" Cpu sample(s) will be collected at every {0}", timeSpan));
+            Timer timer = new Timer();
+            timer.Tick += new EventHandler(CpuUsageStartTimer);
+            timer.Interval = Convert.ToInt32(timeSpan.TotalMilliseconds);
+            timer.Enabled = true;
+            Application.Run();
         }
 
-        private static void CpuNextValue_Timer(object sender, ElapsedEventArgs e)
+        private static void CpuUsageStartTimer(object sender, EventArgs e)
         {
-            try
+            lock (_opsMutex)
             {
-                _timer.Enabled = false;
-                double cpuValue = Math.Round(_perfCounter.NextValue(), 0);
-                if (cpuValue <= 0)
+                try
                 {
-                    cpuValue = 0;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    if (_displayHeader)
+                    {
+                        Console.WriteLine("DateTime             | CpuValue");
+                        _displayHeader = false;
+                    }
+                    double num = Math.Round(_pCounter.NextValue(), 0);
+                    if (num >= 100)
+                    {
+                        num = 100;
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        _cpuValBag.Add(num);
+                    }
+                    else if (num < 0)
+                    {
+                        num = 0;
+                    }
+                    Console.WriteLine(string.Format("{0} | {1}", DateTime.Now, num));
                 }
-                else if (cpuValue > 100)
+                catch (Exception ex)
                 {
-                    cpuValue = 100;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine(string.Format("{0}", ex));
                 }
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"{DateTime.Now} :: CPU Value :: {cpuValue}");
-            }
-            catch (Exception ex)
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Error :: {ex}");
-            }
-            finally
-            {
-                _timer.Enabled = true;
-                Console.ForegroundColor = ConsoleColor.White;
+                finally
+                {
+                    Console.ForegroundColor = ConsoleColor.White;
+                }
             }
         }
     }
